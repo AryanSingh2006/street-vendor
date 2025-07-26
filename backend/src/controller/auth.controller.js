@@ -36,7 +36,8 @@ const signUp = async (req, res) => {
     if (savedUser) {
       const accessToken = jwtUtil.generateAccessToken({ 
         id: savedUser._id, 
-        email: savedUser.email 
+        email: savedUser.email,
+        role: savedUser.role
       });
       
       res.cookie("token", accessToken, {
@@ -86,7 +87,8 @@ const login = async (req, res) => {
 
     const accessToken = jwtUtil.generateAccessToken({ 
       id: user._id, 
-      email: user.email 
+      email: user.email,
+      role: user.role
     });
 
     res.cookie("token", accessToken, {

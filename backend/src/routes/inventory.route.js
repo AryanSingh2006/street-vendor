@@ -4,7 +4,8 @@ import {
   addInventory,
   getInventoryByCategory,
   updateInventory,
-  deleteInventory
+  deleteInventory,
+  restockInventory
 } from "../controller/inventory.controller.js";
 import { isSupplier } from "../middleware/isSupplier.middleware.js";
 
@@ -14,5 +15,6 @@ router.post("/add", authMiddleware, isSupplier, addInventory);
 router.get('/category/:category', getInventoryByCategory);
 router.put("/:inventoryId", authMiddleware, isSupplier, updateInventory);
 router.delete("/:inventoryId", authMiddleware, isSupplier, deleteInventory);
+router.put("/restock/:inventoryId", authMiddleware, isSupplier, restockInventory);
 
 export default router;

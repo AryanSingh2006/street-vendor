@@ -403,7 +403,6 @@ Server runs on: **http://localhost:5000**
 
 ## 🎉 **Perfect for B2B Wholesale Marketplace!**
 
-Your backend now supports all essential wholesale marketplace features:
 - ✅ **Business-focused user management**
 - ✅ **Wholesale product catalog** with MOQ and bulk pricing
 - ✅ **Supplier-controlled order workflow**

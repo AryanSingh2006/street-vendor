@@ -1,156 +1,137 @@
 import inventoryModel from "../model/inventory.model.js";
+import ApiResponse from "../utils/APIResponse.js";
+import asyncHandler from "../utils/asyncHandler.js";
+import apiError from "../utils/apiError.js";
 
-export const addInventory = async (req, res) => {
-  try {
-    const { name, description, price, quantityAvailable, category } = req.body;
+export const addInventory = asyncHandler(async (req, res) => {
+  const { name, description, price, quantityAvailable, category } = req.body;
 
-    if (!name || !price || !quantityAvailable || !category) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    const newItem = new inventoryModel({
-      name,
-      description,
-      price,
-      quantityAvailable,
-      category,
-      supplier: req.user.id // Using 'supplier' to match your model schema
-    });
-
-    await newItem.save();
-
-    res.status(201).json({
-      message: "Inventory item added successfully",
-      data: newItem
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Something went wrong",
-      error: error.message
-    });
+  if (!name || !price || !quantityAvailable || !category) {
+    throw new apiError(400, "All fields are required");
   }
-};
 
-export const getInventoryByCategory = async (req, res) => {
-  try {
-    const { category } = req.params;
-    const { includeOutOfStock } = req.query; // Optional query parameter
+  const newItem = new inventoryModel({
+    name,
+    description,
+    price,
+    quantityAvailable,
+    category,
+    supplier: req.user.id
+  });
 
-    if (!category) {
-      return res.status(400).json({ message: "Category is required" });
-    }
+  await newItem.save();
 
-    // Build query - by default, exclude out of stock items
-    const query = { category };
-    if (includeOutOfStock !== 'true') {
-      query.outOfStock = false;
-    }
+  return res.status(201).json(
+    new ApiResponse(201, newItem, "Inventory item added successfully")
+  );
+});
 
-    const items = await inventoryModel.find(query).populate("supplier", "fullname email");
+export const getInventoryByCategory = asyncHandler(async (req, res) => {
+  const { category } = req.params;
+  const { includeOutOfStock } = req.query;
 
-    res.status(200).json({
-      message: `Items in category: ${category}`,
-      data: items
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Failed to fetch items",
-      error: error.message
-    });
+  if (!category) {
+    throw new apiError(400, "Category is required");
   }
-};
 
-export const updateInventory = async (req, res) => {
-  try {
-    const { inventoryId } = req.params;
-    const userId = req.user.id;
-
-    const inventoryItem = await inventoryModel.findById(inventoryId);
-
-    if (!inventoryItem) {
-      return res.status(404).json({ message: "Inventory item not found" });
-    }
-
-    if (inventoryItem.supplier.toString() !== userId.toString()) {
-      return res.status(403).json({ message: "You are not authorized to update this inventory item" });
-    }
-
-    const updatedItem = await inventoryModel.findByIdAndUpdate(
-      inventoryId,
-      req.body,
-      { new: true, runValidators: true }
-    ).populate("supplier", "fullname email");
-
-    res.status(200).json({
-      message: "Inventory item updated successfully",
-      data: updatedItem
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to update inventory item", error: error.message });
+  const query = { category };
+  if (includeOutOfStock !== "true") {
+    query.outOfStock = false;
   }
-};
 
-export const deleteInventory = async (req, res) => {
-  try {
-    const { inventoryId } = req.params;
-    const userId = req.user.id;
+  const items = await inventoryModel
+    .find(query)
+    .populate("supplier", "fullname email");
 
-    const inventoryItem = await inventoryModel.findById(inventoryId);
+  return res.status(200).json(
+    new ApiResponse(200, items, `Items in category: ${category}`)
+  );
+});
 
-    if (!inventoryItem) {
-      return res.status(404).json({ message: "Inventory item not found" });
-    }
+export const updateInventory = asyncHandler(async (req, res) => {
+  const { inventoryId } = req.params;
+  const userId = req.user.id;
 
-    if (inventoryItem.supplier.toString() !== userId.toString()) {
-      return res.status(403).json({ message: "You are not authorized to delete this inventory item" });
-    }
+  const inventoryItem = await inventoryModel.findById(inventoryId);
 
-    await inventoryModel.findByIdAndDelete(inventoryId);
-
-    res.status(200).json({ message: "Inventory item deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to delete inventory item", error: error.message });
+  if (!inventoryItem) {
+    throw new apiError(404, "Inventory item not found");
   }
-};
 
-// Restock inventory item (add quantity)
-export const restockInventory = async (req, res) => {
-  try {
-    const { inventoryId } = req.params;
-    const { additionalQuantity } = req.body;
-    const userId = req.user.id;
-
-    if (!additionalQuantity || additionalQuantity <= 0) {
-      return res.status(400).json({ message: "Additional quantity must be greater than 0" });
-    }
-
-    const inventoryItem = await inventoryModel.findById(inventoryId);
-
-    if (!inventoryItem) {
-      return res.status(404).json({ message: "Inventory item not found" });
-    }
-
-    if (inventoryItem.supplier.toString() !== userId.toString()) {
-      return res.status(403).json({ message: "You are not authorized to restock this inventory item" });
-    }
-
-    // Update quantity and stock status
-    inventoryItem.quantityAvailable += parseInt(additionalQuantity);
-    
-    // If item was out of stock, mark as available again
-    if (inventoryItem.outOfStock && inventoryItem.quantityAvailable > 0) {
-      inventoryItem.outOfStock = false;
-    }
-
-    await inventoryItem.save();
-
-    const updatedItem = await inventoryModel.findById(inventoryId).populate("supplier", "fullname email");
-
-    res.status(200).json({
-      message: `Inventory restocked successfully. Added ${additionalQuantity} units.`,
-      data: updatedItem
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to restock inventory item", error: error.message });
+  if (inventoryItem.supplier.toString() !== userId.toString()) {
+    throw new apiError(403, "You are not authorized to update this inventory item");
   }
-};
+
+  const updatedItem = await inventoryModel
+    .findByIdAndUpdate(inventoryId, req.body, {
+      new: true,
+      runValidators: true
+    })
+    .populate("supplier", "fullname email");
+
+  return res.status(200).json(
+    new ApiResponse(200, updatedItem, "Inventory item updated successfully")
+  );
+});
+
+
+export const deleteInventory = asyncHandler(async (req, res) => {
+  const { inventoryId } = req.params;
+  const userId = req.user.id;
+
+  const inventoryItem = await inventoryModel.findById(inventoryId);
+
+  if (!inventoryItem) {
+    throw new apiError(404, "Inventory item not found");
+  }
+
+  if (inventoryItem.supplier.toString() !== userId.toString()) {
+    throw new apiError(403, "You are not authorized to delete this inventory item");
+  }
+
+  await inventoryModel.findByIdAndDelete(inventoryId);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "Inventory item deleted successfully"));
+});
+
+export const restockInventory = asyncHandler(async (req, res) => {
+  const { inventoryId } = req.params;
+  const { additionalQuantity } = req.body;
+  const userId = req.user.id;
+
+  if (!additionalQuantity || additionalQuantity <= 0) {
+    throw new apiError(400, "Additional quantity must be greater than 0");
+  }
+
+  const inventoryItem = await inventoryModel.findById(inventoryId);
+
+  if (!inventoryItem) {
+    throw new apiError(404, "Inventory item not found");
+  }
+
+  if (inventoryItem.supplier.toString() !== userId.toString()) {
+    throw new apiError(403, "You are not authorized to restock this inventory item");
+  }
+
+  inventoryItem.quantityAvailable += parseInt(additionalQuantity);
+
+  if (inventoryItem.outOfStock && inventoryItem.quantityAvailable > 0) {
+    inventoryItem.outOfStock = false;
+  }
+
+  await inventoryItem.save();
+
+  const updatedItem = await inventoryModel
+    .findById(inventoryId)
+    .populate("supplier", "fullname email");
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      updatedItem,
+      `Inventory restocked successfully. Added ${additionalQuantity} units.`
+    )
+  );
+});

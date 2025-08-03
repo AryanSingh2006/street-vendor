@@ -2,22 +2,21 @@ import userModel from "../model/user.model.js"
 import bcrypt from "bcrypt";
 import jwtUtil from "../utils/jwt.js";
 import { NODE_ENV } from "../constants.js";
+import ApiResponse from "../utils/APIResponse.js";
+import asyncHandler from "../utils/asyncHandler.js";
+import apiError from "../utils/apiError.js";
 
-const signUp = async (req, res) => {
+const signUp = asyncHandler(async (req, res) => {
   const { fullname, email, phone, password, role } = req.body;
   try {
 
     if (!fullname || !email || !phone || !password || !role) {
-      return res.status(400).json({
-        message: "All fields are required"
-      })
+      throw new apiError(400,"all fields are required")
     }
 
     const existedUser = await userModel.findOne({ email });
     if (existedUser) {
-      return res.status(400).json({
-        message: "Email already exists"
-      });
+      throw new apiError(400,"email already exist")
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -34,12 +33,12 @@ const signUp = async (req, res) => {
     const savedUser = await newUser.save();
 
     if (savedUser) {
-      const accessToken = jwtUtil.generateAccessToken({ 
-        id: savedUser._id, 
+      const accessToken = jwtUtil.generateAccessToken({
+        id: savedUser._id,
         email: savedUser.email,
         role: savedUser.role
       });
-      
+
       res.cookie("token", accessToken, {
         httpOnly: true,
         secure: NODE_ENV === "production",
@@ -61,12 +60,14 @@ const signUp = async (req, res) => {
 
   } catch (error) {
     console.error("Error in signUp:", error);
+    throw new apiError(500,"Internal server error")
     res.status(500).json({
       message: "Internal server error",
       error: error.message
     });
   }
 }
+)
 const login = async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -85,8 +86,8 @@ const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const accessToken = jwtUtil.generateAccessToken({ 
-      id: user._id, 
+    const accessToken = jwtUtil.generateAccessToken({
+      id: user._id,
       email: user.email,
       role: user.role
     });
@@ -130,8 +131,8 @@ const logout = (req, res) => {
   }
 }
 
-export default { 
+export default {
   signUp,
   login,
   logout
- };
+};
